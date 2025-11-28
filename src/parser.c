@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,7 +9,7 @@
 #include "error.h"
 
 #define MAX_TOKENS 128
-#define TOKEN_BUFFER_SIZE 1024
+#define TOKEN_BUFFER_SIZE 4096
 
 enum token_type {
 	TOK_WORD,
@@ -35,6 +36,7 @@ static enum token_type
 next_token(const char **input, char **value)
 {
 	char buf[TOKEN_BUFFER_SIZE];
+	char temp[TOKEN_BUFFER_SIZE];
 	size_t len = 0;
 	int sq = 0, dq = 0;
 	const char *p = *input;
@@ -116,7 +118,8 @@ next_token(const char **input, char **value)
 	}
 
 	buf[len] = '\0';
-	*value = strdup(buf);
+	expand_tilde(buf, temp, TOKEN_BUFFER_SIZE);
+	*value = strdup(temp);
 	*input = p;
 	return TOK_WORD;
 }
@@ -169,6 +172,46 @@ append_arg(Command *cmd, char **input)
 	argv[cmd->argc] = NULL;
 
 	cmd->argv = argv;
+	return 0;
+}
+
+/**
+ * @brief Expand a leading '~' into the user's HOME directory.
+ *
+ * Supports:
+ *   "~"      -> $HOME
+ *   "~/foo"  -> $HOME/foo
+ *
+ * "~username" is intentionally not implemented and is copied verbatim.
+ *
+ * @param path      Input path string.
+ * @param expanded  Output buffer for expanded path.
+ * @param size      Maximum size of the output buffer.
+ *
+ * @return 0 on success, -1 if HOME is not set.
+ */
+int
+expand_tilde(const char *path, char *expanded, size_t size)
+{
+	if (path[0] != '~') {
+		strncpy(expanded, path, size - 1);
+		expanded[size - 1] = '\0';
+		return 0;
+	}
+
+	char *home = getenv("HOME");
+	if (!home) {
+		print_error(__func__, "HOME not set", 0);
+		return -1;
+	}
+
+	if (path[1] == '\0' || path[1] == '/') {
+		snprintf(expanded, size, "%s%s", home, path + 1);
+		return 0;
+	}
+
+	strncpy(expanded, path, size - 1);
+	expanded[size - 1] = '\0';
 	return 0;
 }
 
