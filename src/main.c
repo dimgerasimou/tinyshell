@@ -23,6 +23,7 @@
 #include <unistd.h>
 
 #include "error.h"
+#include "parser.h"
 
 /* ======== Constant Definitions ======== */
 
@@ -58,7 +59,6 @@ static int  execute_command(char **args);
 static int  expand_tilde(const char *path, char *expanded, size_t size);
 static int  find_in_path(const char *command, char *filepath);
 static int  main_loop(void);
-static int  parse_input(char *input, char **args);
 static int  print_prompt(const unsigned int code);
 
 /* ======== Implementation ======== */
@@ -291,8 +291,7 @@ static int
 main_loop(void)
 {
 	char buf[INPUT_MAX];
-	char *args[ARGS_MAX];
-	int nargs;
+	Command *cmd;
 	int exit_code = 0;
 
 	while (1) {
@@ -304,56 +303,27 @@ main_loop(void)
 			printf("\n");
 			break;
 		}
-		
-		nargs = parse_input(buf, args);
-		if (nargs == -1)
-			continue;
 
-		if (!strcmp(args[0], "exit")) {
-			if (nargs > 1)
-				exit_code = strtol(args[1], NULL, 10);
+		cmd = parser_parse(buf);
+
+		if (cmd->argc <= 0)
+			continue;
+		
+		if (!strcmp(cmd->argv[0], "exit")) {
+			if (cmd->argc > 1)
+				exit_code = strtol(cmd->argv[1], NULL, 10);
 			return exit_code;
 		}
 
-		if (!strcmp(args[0], "cd")) {
-			exit_code = builtin_cd(args);
+		if (!strcmp(cmd->argv[0], "cd")) {
+			exit_code = builtin_cd(cmd->argv);
 			continue;
 		}
 
-		exit_code = execute_command(args);
+		exit_code = execute_command(cmd->argv);
+		while (parser_free_cmd(cmd));
 	}
 	return 0;
-}
-
-/**
- * @brief Tokenize the user's input buffer into a NULL-terminated argv array.
- *
- * Splits @p input on whitespace and fills @p args with pointers into the
- * input buffer. The input buffer is modified in place.
- *
- * @param input A mutable string from fgets().
- * @param args  Output array of argument pointers (size ARGS_MAX).
- *
- * @return Number of parsed arguments, or -1 if the input is empty.
- */
-static int
-parse_input(char *input, char **args)
-{
-	int argc = 0;
-	char *token;
-
-	input[strcspn(input, "\n")] = 0;
-	if (!strlen(input))
-		return -1;
-
-	token = strtok(input, " \t");
-	while (token && argc < ARGS_MAX - 1) {
-		args[argc++] = token;
-		token = strtok(NULL, " \t");
-	}
-
-	args[argc] = NULL;
-	return argc;
 }
 
 /**
