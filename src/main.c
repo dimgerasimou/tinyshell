@@ -1,7 +1,7 @@
 /**
  * @file tinyshell.c
  * @brief Implementation of TinyShell, a simple but functionall shell program.
- *
+*
  * This implementation was developed for the purposes of the class:
  * Operating Systems,
  * Department of Electrical and Computer Engineering,
@@ -22,6 +22,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#include "error.h"
 
 /* ======== Constant Definitions ======== */
 
@@ -58,9 +59,7 @@ static int  expand_tilde(const char *path, char *expanded, size_t size);
 static int  find_in_path(const char *command, char *filepath);
 static int  main_loop(void);
 static int  parse_input(char *input, char **args);
-static void print_error(const char *func, const char *msg, int err);
 static int  print_prompt(const unsigned int code);
-static void set_program_name(const char *argv0);
 
 /* ======== Implementation ======== */
 
@@ -117,7 +116,7 @@ builtin_cd(char **args)
 		setenv("OLDPWD", cwd, 1);
 
 	if (chdir(path)) {
-		fprintf(stderr, "cd: %s: %s\n", path, strerror(errno));
+		print_error("cd", "directory error", errno);
 		return 1;
 	}
 
@@ -151,7 +150,7 @@ execute_command(char **args)
 	char path[PATH_MAX];
 
 	if (!find_in_path(args[0], path)) {
-		fprintf(stderr, "%s: %s: command not found\n", program_name, args[0]);
+		print_error(args[0], "command not found", 0);
 		return 127;
 	}
 
@@ -177,7 +176,6 @@ execute_command(char **args)
 	if (WIFEXITED(status)) {
 		return WEXITSTATUS(status);
 	} else if (WIFSIGNALED(status)) {
-		fprintf(stderr, "%s: process terminated by signal %d\n", program_name, WTERMSIG(status));
 		return 128 + WTERMSIG(status);
 	}
 
@@ -359,27 +357,6 @@ parse_input(char *input, char **args)
 }
 
 /**
- * @brief Print a formatted error message to stderr.
- *
- * Prints an error of the form:
- *   program_name: function: message: strerror(err)
- *
- * If @p err is zero, the strerror portion is omitted.
- *
- * @param func The name of the reporting function (usually __func__).
- * @param msg  A description of the error.
- * @param err  Error code (e.g., errno) or 0 if no strerror text should appear.
- */
-static void
-print_error(const char *func, const char *msg, int err)
-{
-	if (err)
-		fprintf(stderr, "%s: %s: %s: %s\n", program_name, func, msg, strerror(err));
-	else
-		fprintf(stderr, "%s: %s: %s\n", program_name, func, msg);
-}
-
-/**
  * @brief Print the interactive shell prompt.
  *
  * The prompt has the form:
@@ -436,23 +413,6 @@ print_prompt(const unsigned int code) {
 		
 	printf("\n%s@%s: %s\n[%u]-> ", username, hostname, display_path, code);
 	return 0;
-}
-
-/**
- * @brief Set the program name for error messages.
- *
- * Determines the printable program name by stripping any leading path
- * components from @p argv0. This should be called early in main().
- *
- * @param argv0 The raw program path (argv[0]).
- */
-static void
-set_program_name(const char *argv0)
-{
-	if (argv0) {
-		const char *slash = strrchr(argv0, '/');
-		program_name = slash ? slash + 1 : argv0;
-	}
 }
 
 /**
