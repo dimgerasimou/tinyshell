@@ -118,8 +118,11 @@ next_token(const char **input, char **value)
 	}
 
 	buf[len] = '\0';
-	expand_tilde(buf, temp, TOKEN_BUFFER_SIZE);
-	*value = strdup(temp);
+	if (!expand_tilde(buf, temp, TOKEN_BUFFER_SIZE))
+		*value = strdup(temp);
+	else
+		*value = strdup(buf);
+
 	*input = p;
 	return TOK_WORD;
 }
@@ -220,7 +223,6 @@ parser_parse(char *input)
 {
 	Command *ret;
 	Command *cur;
-	Command *prev;
 
 	const char *p = input;
 	char *value;
@@ -277,7 +279,7 @@ parser_parse(char *input)
 				goto fail;
 			}
 
-			cur->redirect[1] = value;
+			cur->redirect[2] = value;
 			break;
 
 		case TOK_REDIR_ERR_APPEND:
@@ -309,7 +311,7 @@ parser_free_cmd(Command *cmd)
 		return NULL;
 
 	if (cmd->argv) {
-		for (int i = 0; i < cmd->argc + 1; i++) {
+		for (int i = 0; i < cmd->argc; i++) {
 			if (cmd->argv[i])
 				free(cmd->argv[i]);
 		}
