@@ -1,7 +1,7 @@
 /**
  * @file tinyshell.c
  * @brief Implementation of TinyShell, a simple but functionall shell program.
-*
+ *
  * This implementation was developed for the purposes of the class:
  * Operating Systems,
  * Department of Electrical and Computer Engineering,
@@ -10,20 +10,18 @@
  * Usage: ./tinyshell
  * It takes no input arguments.
  */
-
 #define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
 #include <limits.h>
-#include <linux/limits.h>
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
 #include "error.h"
 #include "parser.h"
+#include "bultin_commands.h"
 
 /* ======== Constant Definitions ======== */
 
@@ -35,7 +33,6 @@
 #define PATH_MAX 4096
 #endif
 #define INPUT_MAX 1024
-#define ARGS_MAX  64
 
 /* ======== Global Variables Definitions ======== */
 
@@ -52,78 +49,16 @@ const char *program_name = "tinyshell";
  */
 extern char **environ;
 
+unsigned int exit_code = 0;
+
 /* ======== Function Prototypes ======== */
 
-static int  builtin_cd(char **args);
 static int  execute_command(char **args);
 static int  find_in_path(const char *command, char *filepath);
-static int  main_loop(void);
+static void main_loop(void);
 static int  print_prompt(const unsigned int code);
 
 /* ======== Implementation ======== */
-
-/**
- * @brief Handle the builtin `cd` command.
- *
- * Behavior:
- *   cd            -> change to $HOME
- *   cd <path>     -> change to path (supports ~)
- *   cd -          -> change to $OLDPWD and print it
- *
- * Updates PWD and OLDPWD environment variables.
- *
- * @param args Argument vector where args[0] = "cd", args[1] optional.
- *
- * @return 0 on success, 1 on failure.
- */
-static int
-builtin_cd(char **args)
-{
-	const char *path;
-	char *home;
-	char expanded_path[PATH_MAX];
-	char cwd[PATH_MAX];
-
-	if (args[1] == NULL) {
-		// cd with no arguments -> go to HOME
-		home = getenv("HOME");
-		if (!home) {
-			print_error(__func__, "HOME not set", 0);
-			return 1;
-		}
-		path = home;
-	}
-	else if (strcmp(args[1], "-") == 0) {
-		// cd - -> go to previous directory (OLDPWD)
-		char *oldpwd = getenv("OLDPWD");
-		if (!oldpwd) {
-			print_error(__func__, "OLDPWD not set", 0);
-			return 1;
-		}
-		path = oldpwd;
-		printf("%s\n", path);
-	}
-	else {
-		// cd <path> -> go to specified path (Expand ~)
-		if (expand_tilde(args[1], expanded_path, PATH_MAX) == 0)
-			path = expanded_path;
-		else
-			return 1;
-	}
-
-	if (getcwd(cwd, PATH_MAX))
-		setenv("OLDPWD", cwd, 1);
-
-	if (chdir(path)) {
-		print_error("cd", "directory error", errno);
-		return 1;
-	}
-
-	if (getcwd(cwd, PATH_MAX))
-		setenv("PWD", cwd, 1);
-
-	return 0;
-}
 
 /**
  * @brief Fork and execute an external command.
@@ -246,16 +181,17 @@ find_in_path(const char *command, char *filepath)
  *
  * @return The value to be returned from main().
  */
-static int
+static void
 main_loop(void)
 {
 	char buf[INPUT_MAX];
 	Command *cmd;
-	int exit_code = 0;
 
 	while (1) {
-		if (print_prompt(exit_code))
-			return -1;
+		if (print_prompt(exit_code)) {
+			exit_code = 255;
+			return;
+		}
 
 		if (!fgets(buf, INPUT_MAX, stdin)) {
 			// EOF
@@ -268,21 +204,21 @@ main_loop(void)
 		if (cmd->argc <= 0)
 			continue;
 		
-		if (!strcmp(cmd->argv[0], "exit")) {
-			if (cmd->argc > 1)
-				exit_code = strtol(cmd->argv[1], NULL, 10);
-			return exit_code;
-		}
+		switch (built_in(cmd)) {
+		case -1:
+			return;
+		case 0:
+			break;
 
-		if (!strcmp(cmd->argv[0], "cd")) {
-			exit_code = builtin_cd(cmd->argv);
+		default:
+			while (parser_free_cmd(cmd));
 			continue;
 		}
 
 		exit_code = execute_command(cmd->argv);
 		while (parser_free_cmd(cmd));
 	}
-	return 0;
+	return;
 }
 
 /**
@@ -357,8 +293,10 @@ main(int argc __attribute__((unused)), char *argv[])
 {
 	set_program_name(argv[0]);
 
-	printf("TinyShell - Phase 1\n");
+	printf("TinyShell - Phase 2\n");
 	printf("Type 'exit' to quit or press Ctrl+D\n");
 
-	return main_loop();
+	main_loop();
+
+	return exit_code;
 }
