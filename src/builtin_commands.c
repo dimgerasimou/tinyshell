@@ -59,13 +59,13 @@ builtin_cd(char **args)
 	// Check if path exists and is a directory
 	if (stat(path, &st) == -1) {
 		exit_code = errno;
-		fprintf(stderr, "cd: \"%s\": %s\n", path, strerror(exit_code));
+		fprintf(stderr, "cd: %s: %s\n", path, strerror(exit_code));
 		return 1;
 	}
 
 	if (!S_ISDIR(st.st_mode)) {
 		exit_code = ENOTDIR;
-		fprintf(stderr, "cd: \"%s\": %s\n", path, strerror(exit_code));
+		fprintf(stderr, "cd: %s: %s\n", path, strerror(exit_code));
 		return 1;
 	}
 	
@@ -74,7 +74,7 @@ builtin_cd(char **args)
 
 	if (chdir(path)) {
 		exit_code = errno;
-		fprintf(stderr, "cd: \"%s\": %s\n", path, strerror(exit_code));
+		fprintf(stderr, "cd: %s: %s\n", path, strerror(exit_code));
 		return 1;
 	}
 
