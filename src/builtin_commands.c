@@ -1,4 +1,3 @@
-#include <asm-generic/errno-base.h>
 #define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
@@ -9,7 +8,6 @@
 #include <sys/stat.h>
 
 #include "bultin_commands.h"
-#include "error.h"
 
 extern int exit_code;
 
@@ -40,7 +38,7 @@ builtin_cd(char **args)
 		home = getenv("HOME");
 		if (!home) {
 			exit_code = EINVAL;
-			print_error(__func__, "HOME not set", 0);
+			fprintf(stderr, "cd: HOME not set\n");
 			return 1;
 		}
 		path = home;
@@ -49,7 +47,7 @@ builtin_cd(char **args)
 		char *oldpwd = getenv("OLDPWD");
 		if (!oldpwd) {
 			exit_code = EINVAL;
-			print_error(__func__, "OLDPWD not set", 0);
+			fprintf(stderr, "cd: OLDPWD not set\n");
 			return 1;
 		}
 		path = oldpwd;
@@ -61,13 +59,13 @@ builtin_cd(char **args)
 	// Check if path exists and is a directory
 	if (stat(path, &st) == -1) {
 		exit_code = errno;
-		print_error("cd", path, errno);
+		fprintf(stderr, "cd: \"%s\": %s\n", path, strerror(exit_code));
 		return 1;
 	}
 
 	if (!S_ISDIR(st.st_mode)) {
 		exit_code = ENOTDIR;
-		print_error("cd", path, ENOTDIR);
+		fprintf(stderr, "cd: \"%s\": %s\n", path, strerror(exit_code));
 		return 1;
 	}
 	
@@ -76,7 +74,7 @@ builtin_cd(char **args)
 
 	if (chdir(path)) {
 		exit_code = errno;
-		print_error("cd", path, errno);
+		fprintf(stderr, "cd: \"%s\": %s\n", path, strerror(exit_code));
 		return 1;
 	}
 
