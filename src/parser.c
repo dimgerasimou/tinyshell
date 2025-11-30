@@ -19,7 +19,8 @@ enum token_type {
 	TOK_REDIR_OUT_APPEND,
 	TOK_REDIR_ERR,
 	TOK_REDIR_ERR_APPEND,
-	TOK_END
+	TOK_END,
+	TOK_ERROR
 };
 
 /**
@@ -122,6 +123,11 @@ next_token(const char **input, char **value)
 		*value = strdup(temp);
 	else
 		*value = strdup(buf);
+
+	if (!*value) {
+		print_error(__func__, "strdup() failed", errno);
+		return TOK_ERROR;
+	}
 
 	*input = p;
 	return TOK_WORD;
@@ -237,13 +243,23 @@ parser_parse(char *input)
 	while ((type = next_token(&p, &value)) != TOK_END) {
 		switch (type) {
 		case TOK_WORD:
-			if (append_arg(cur, &value))
+			if (append_arg(cur, &value)) {
+				if (value)
+					free(value);
 				goto fail;
+			}
 			break;
 
 		case TOK_PIPE:
-			print_error(NULL, "pipes not yet implemented", 0);
-			goto fail;
+		{
+			Command *next = new_cmd();
+			if (next == NULL)
+				goto fail;
+
+			cur->next = next;
+			cur = next;
+			break;
+		}
 
 		case TOK_REDIR_IN:
 			if (cur->redirect[0] || next_token(&p, &value) != TOK_WORD) {
@@ -292,42 +308,54 @@ parser_parse(char *input)
 			cur->append |= 1 << 2;
 			break;
 
-		case TOK_END:
+		case TOK_END: /* dead code */
+			if (!cur->argv[0]) {
+				print_error(NULL, "parse error near '|'", 0);
+				goto fail;
+			}
 			break;
+
+		case TOK_ERROR:
+			if (value)
+				free(value);
+			goto fail;
 		}
+	}
+
+	if (!cur->argv[0]) {
+		print_error(NULL, "parse error: expected command", 0);
+		goto fail;
 	}
 
 	return ret;
 
 fail:
-	while (parser_free_cmd(ret));
+	parser_free_cmd(ret);
 	return NULL;
 }
 
-Command*
+void
 parser_free_cmd(Command *cmd)
 {
-	if (!cmd)
-		return NULL;
-
-	if (cmd->argv) {
-		for (int i = 0; i < cmd->argc; i++) {
-			if (cmd->argv[i])
-				free(cmd->argv[i]);
+	while (cmd) {
+		if (cmd->argv) {
+			for (int i = 0; i < cmd->argc; i++) {
+				if (cmd->argv[i])
+					free(cmd->argv[i]);
+			}
+			free(cmd->argv);
 		}
-		free(cmd->argv);
+
+		if (cmd->redirect[0])
+			free(cmd->redirect[0]);
+		if (cmd->redirect[1])
+			free(cmd->redirect[1]);
+		if (cmd->redirect[2])
+			free(cmd->redirect[2]);
+
+		Command *n = cmd->next;
+
+		free(cmd);
+		cmd = n;
 	}
-
-	if (cmd->redirect[0])
-		free(cmd->redirect[0]);
-	if (cmd->redirect[1])
-		free(cmd->redirect[1]);
-	if (cmd->redirect[2])
-		free(cmd->redirect[2]);
-
-	Command *ret = cmd->next;
-	
-	free(cmd);
-	cmd = ret;
-	return ret;
 }

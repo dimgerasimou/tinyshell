@@ -7,7 +7,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-#include "bultin_commands.h"
+#include "builtin_commands.h"
 
 extern int exit_code;
 
@@ -90,6 +90,8 @@ built_in(Command *cmd)
 	if (!strcmp(cmd->argv[0], "exit")) {
 		if (cmd->argc > 1)
 			exit_code = strtol(cmd->argv[1], NULL, 10);
+		else
+			exit_code = 0;
 		return -1;
 	}
 

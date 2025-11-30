@@ -42,7 +42,7 @@ const char *program_name = "tinyshell";
  */
 extern char **environ;
 
-unsigned int exit_code = 0;
+int exit_code = 0;
 
 /* ======== Function Prototypes ======== */
 
@@ -87,14 +87,15 @@ main_loop(void)
 
 		cmd = parser_parse(buf);
 
-		if (cmd->argc <= 0)
+		if (!cmd || cmd->argc <= 0)
 			continue;
-		
+
 		if (execute_pipeline(cmd) == -1) {
-			while (parser_free_cmd(cmd));
+			parser_free_cmd(cmd);
 			return;
 		}
-		while (parser_free_cmd(cmd));
+
+		parser_free_cmd(cmd);
 	}
 	return;
 }

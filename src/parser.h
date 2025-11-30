@@ -15,7 +15,7 @@ struct Command{
 
 Command* parser_parse(char *input);
 
-Command* parser_free_cmd(Command *cmd);
+void parser_free_cmd(Command *cmd);
 
 int  expand_tilde(const char *path, char *expanded, size_t size);
 

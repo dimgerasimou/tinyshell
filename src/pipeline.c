@@ -10,7 +10,7 @@
 
 #include "pipeline.h"
 #include "error.h"
-#include "bultin_commands.h"
+#include "builtin_commands.h"
 
 extern char **environ;
 extern int exit_code;
@@ -50,6 +50,10 @@ find_in_path(const char *command, char *filepath)
 	}
 
 	path_copy = strdup(path_env);
+	if (!path_copy) {
+		print_error(__func__, "strdup() failed", errno);
+		return 0;
+	}
 
 	dir = strtok(path_copy, ":");
 	while (dir) {
