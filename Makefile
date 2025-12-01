@@ -10,6 +10,9 @@ PROJECT := tinyshell
 
 CC := gcc
 CFLAGS := -std=c99 -Wpedantic -Wall -Wextra -Os
+CFLAGS += -MMD -MP
+
+-include $(OBJS:.o=.d)
 
 SRC_DIR := src
 BIN_DIR := bin

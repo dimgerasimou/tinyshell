@@ -14,7 +14,7 @@
  * This variable should be initialized by calling error_set_name()
  * before any calls to error_print().
  */
-extern const char *program_name;
+const char *program_name = "tinyshell";
 
 /**
  * @copydoc set_program_name()
