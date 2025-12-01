@@ -125,7 +125,7 @@ next_token(const char **input, char **value)
 		*value = strdup(buf);
 
 	if (!*value) {
-		print_error(__func__, "strdup() failed", errno);
+		error_print(__func__, "strdup() failed", errno);
 		return TOK_ERROR;
 	}
 
@@ -140,7 +140,7 @@ new_cmd(void)
 
 	ret = malloc(sizeof(Command));
 	if (!ret) {
-		print_error(__func__, "malloc() failed", errno);
+		error_print(__func__, "malloc() failed", errno);
 		return NULL;
 	}
 
@@ -148,7 +148,7 @@ new_cmd(void)
 	ret->argv = malloc((ret->argc + 1) * sizeof(char*));
 
 	if (!ret->argv) {
-		print_error(__func__, "malloc() failed", errno);
+		error_print(__func__, "malloc() failed", errno);
 		free(ret);
 		return NULL;
 	}
@@ -173,7 +173,7 @@ append_arg(Command *cmd, char **input)
 	argv = realloc(cmd->argv, (cmd->argc + 1) * sizeof(char*));
 
 	if (!argv) {
-		print_error(__func__, "realloc() failed", errno);
+		error_print(__func__, "realloc() failed", errno);
 		return 1;
 	}
 
@@ -210,7 +210,7 @@ expand_tilde(const char *path, char *expanded, size_t size)
 
 	char *home = getenv("HOME");
 	if (!home) {
-		print_error(__func__, "HOME not set", 0);
+		error_print(__func__, "HOME not set", 0);
 		return -1;
 	}
 
@@ -263,7 +263,7 @@ parser_parse(char *input)
 
 		case TOK_REDIR_IN:
 			if (cur->redirect[0] || next_token(&p, &value) != TOK_WORD) {
-				print_error(NULL, "parse error near '<'", 0);
+				error_print(NULL, "parse error near '<'", 0);
 				goto fail;
 			}
 
@@ -272,7 +272,7 @@ parser_parse(char *input)
 
 		case TOK_REDIR_OUT:
 			if (cur->redirect[1] || next_token(&p, &value) != TOK_WORD) {
-				print_error(NULL, "parse error near '>'", 0);
+				error_print(NULL, "parse error near '>'", 0);
 				goto fail;
 			}
 
@@ -281,7 +281,7 @@ parser_parse(char *input)
 
 		case TOK_REDIR_OUT_APPEND:
 			if (cur->redirect[1] || next_token(&p, &value) != TOK_WORD) {
-				print_error(NULL, "parse error near \">>\"", 0);
+				error_print(NULL, "parse error near \">>\"", 0);
 				goto fail;
 			}
 
@@ -291,7 +291,7 @@ parser_parse(char *input)
 
 		case TOK_REDIR_ERR:
 			if (cur->redirect[2] || next_token(&p, &value) != TOK_WORD) {
-				print_error(NULL, "parse error near '2>'", 0);
+				error_print(NULL, "parse error near '2>'", 0);
 				goto fail;
 			}
 
@@ -300,7 +300,7 @@ parser_parse(char *input)
 
 		case TOK_REDIR_ERR_APPEND:
 			if (cur->redirect[2] || next_token(&p, &value) != TOK_WORD) {
-				print_error(NULL, "parse error near \"2>>\"", 0);
+				error_print(NULL, "parse error near \"2>>\"", 0);
 				goto fail;
 			}
 
@@ -310,7 +310,7 @@ parser_parse(char *input)
 
 		case TOK_END: /* dead code */
 			if (!cur->argv[0]) {
-				print_error(NULL, "parse error near '|'", 0);
+				error_print(NULL, "parse error near '|'", 0);
 				goto fail;
 			}
 			break;
@@ -323,7 +323,7 @@ parser_parse(char *input)
 	}
 
 	if (!cur->argv[0]) {
-		print_error(NULL, "parse error: expected command", 0);
+		error_print(NULL, "parse error: expected command", 0);
 		goto fail;
 	}
 

@@ -73,7 +73,7 @@ builtin_cd(Command *cmd)
 	char cwd[PATH_MAX];
 
 	if (cmd->argc > 2) {
-		print_error("cd", "too many arguments", 0);
+		error_print("cd", "too many arguments", 0);
 		exit_code = 1;
 		return -1;
 	}
@@ -83,7 +83,7 @@ builtin_cd(Command *cmd)
 		const char *env = getenv("HOME");
 		if (!env) {
 			exit_code = 1;
-			print_error("cd", "\"HOME\" env variable not set", 0);
+			error_print("cd", "\"HOME\" env variable not set", 0);
 			return -1;
 		}
 
@@ -93,7 +93,7 @@ builtin_cd(Command *cmd)
 		const char *env = getenv("OLDPWD");
 		if (!env) {
 			exit_code = 1;
-			print_error("cd", "\"OLDPWD\" env variable not set", 0);
+			error_print("cd", "\"OLDPWD\" env variable not set", 0);
 			return -1;
 		}
 
@@ -103,35 +103,35 @@ builtin_cd(Command *cmd)
 	}
 
 	if (!path) {
-		print_error("cd", "strdup", errno);
+		error_print("cd", "strdup", errno);
 		exit_code = 1;
 		return -1;
 	}
 
 	/* check if path exists, is a directory and with exec permision*/
 	if (stat(path, &st)) {
-		print_error("cd", path, errno);
+		error_print("cd", path, errno);
 		exit_code = 1;
 		free(path);
 		return -1;
 	}
 
 	if (!S_ISDIR(st.st_mode)) {
-		print_error("cd", path, ENOTDIR);
+		error_print("cd", path, ENOTDIR);
 		exit_code = 1;
 		free(path);
 		return -1;
 	}
 
 	if (access(path, X_OK)) {
-		print_error("cd", path, errno);
+		error_print("cd", path, errno);
 		exit_code = 1;
 		free(path);
 		return -1;
 	}
 	
 	if (!getcwd(cwd, sizeof(cwd))) {
-		print_error("cd", "getcwd", errno);
+		error_print("cd", "getcwd", errno);
 		exit_code = 1;
 		free(path);
 		return -1;
@@ -139,7 +139,7 @@ builtin_cd(Command *cmd)
 
 	/* actually change directory */
 	if (chdir(path)) {
-		print_error("cd", path, errno);
+		error_print("cd", path, errno);
 		exit_code = 1;
 		free(path);
 		return -1;
@@ -153,20 +153,20 @@ builtin_cd(Command *cmd)
 
 	/* set oldpwd as cwd */
 	if (setenv("OLDPWD", cwd, 1)) {
-		print_error("cd", "setenv \"OLDPWD\"", errno);
+		error_print("cd", "setenv \"OLDPWD\"", errno);
 		exit_code = 1;
 		return -1;
 	}
 
 	/* set new pwd */
 	if (!getcwd(cwd, sizeof(cwd))) {
-		print_error("cd", "getcwd", errno);
+		error_print("cd", "getcwd", errno);
 		exit_code = 1;
 		return -1;
 	}
 
 	if (setenv("PWD", cwd, 1)) {
-		print_error("cd", "setenv \"PWD\"", errno);
+		error_print("cd", "setenv \"PWD\"", errno);
 		exit_code = 1;
 		return -1;
 	}
@@ -200,14 +200,14 @@ builtin_exit(Command *cmd)
 			char *msg = malloc(len * sizeof(char));
 			
 			if (!msg) {
-				print_error("exit", "malloc", errno);
+				error_print("exit", "malloc", errno);
 				exit_code = 1;
 				return -1;
 			}
 
 			snprintf(msg, len, "%s: numeric argument required", cmd->argv[1]);
 
-			print_error("exit", msg, 0);
+			error_print("exit", msg, 0);
 			free(msg);
 			exit_code = 2;
 			return -1;
@@ -216,7 +216,7 @@ builtin_exit(Command *cmd)
 		return 2;
 	}
 
-	print_error("exit", "too many arguments", 0);
+	error_print("exit", "too many arguments", 0);
 	exit_code = 1;
 	return -1;
 }

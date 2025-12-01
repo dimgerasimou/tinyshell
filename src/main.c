@@ -1,6 +1,7 @@
 /**
- * @file tinyshell.c
- * @brief Implementation of TinyShell, a simple but functionall shell program.
+ * @file main.c
+ * @brief Implementation of TinyShell, a simple
+ *        but functionall shell program.
  *
  * This implementation was developed for the purposes of the class:
  * Operating Systems,
@@ -32,8 +33,8 @@
 /**
  * @brief Global variable storing the program name for error messages.
  *
- * This variable should be initialized by calling `set_program_name()`
- * before any calls to `print_error()`.
+ * This variable should be initialized by calling error_set_name()
+ * before any calls to error_print().
  */
 const char *program_name = "tinyshell";
 
@@ -123,24 +124,24 @@ print_prompt(const unsigned int code) {
 
 	home = getenv("HOME");
 	if (!home) {
-		print_error(__func__, "getenv() failed for \"HOME\" env variable", 0);
+		error_print(__func__, "getenv() failed for \"HOME\" env variable", 0);
 		return -1;
 	}
 		
 	username = getenv("USER");
 	if (!username) {
-		print_error(__func__, "getenv() failed for \"USER\" env variable", 0);
+		error_print(__func__, "getenv() failed for \"USER\" env variable", 0);
 		return -1;
 	}
 		
 	if (gethostname(hostname, HOST_NAME_MAX)) {
-		print_error(__func__, "gethostname() failed", errno);
+		error_print(__func__, "gethostname() failed", errno);
 		return -1;
 	}
 	hostname[HOST_NAME_MAX] = '\0';
 
 	if (!getcwd(cwd, PATH_MAX)) {
-		print_error(__func__, "getcwd() failed", errno);
+		error_print(__func__, "getcwd() failed", errno);
 		return -1;
 	}
 		
@@ -165,12 +166,12 @@ print_prompt(const unsigned int code) {
  * Initializes the program name, prints the startup banner, and then
  * transfers control to @ref main_loop.
  *
- * @return Exit code from main_loop().
+ * @return Exit code.
  */
 int
 main(int argc __attribute__((unused)), char *argv[])
 {
-	set_program_name(argv[0]);
+	error_set_name(argv[0]);
 
 	printf("TinyShell - Phase 2\n");
 	printf("Type 'exit' to quit or press Ctrl+D\n");

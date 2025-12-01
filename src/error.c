@@ -8,13 +8,11 @@
 
 #include "error.h"
 
-#define BUF_MAX 4096
-
 /**
  * @brief Global variable storing the program name for error messages.
  *
- * This variable should be initialized by calling `set_program_name()`
- * before any calls to `print_error()`.
+ * This variable should be initialized by calling error_set_name()
+ * before any calls to error_print().
  */
 extern const char *program_name;
 
@@ -22,19 +20,30 @@ extern const char *program_name;
  * @copydoc set_program_name()
  */
 void
-set_program_name(const char *argv0)
+error_set_name(const char *name)
 {
-	if (argv0) {
-		const char *slash = strrchr(argv0, '/');
-		program_name = slash ? slash + 1 : argv0;
+	if (name) {
+		const char *slash = strrchr(name, '/');
+		program_name = slash ? slash + 1 : name;
 	}
 }
 
 /**
- * @copydoc print_error()
+ * @brief Prints an error message to stderr.
+ *
+ * Formats and prints an error message in the form:
+ *     program_name: function: message: strerror(err)
+ *
+ * Omits the strerror part if err == 0, or both the
+ * func and strerror if func == NULL.
+ *
+ * @param func  Name of the function reporting the error (e.g., __func__),
+ *              or NULL if not applicable.
+ * @param msg   Description of the error.
+ * @param err   Error code (e.g., errno), or 0 if not applicable.
  */
 void
-print_error(const char *func, const char *msg, int err)
+error_print(const char *func, const char *msg, const int err)
 {
 	if (!func) {
 		fprintf(stderr, "%s: %s\n", program_name, msg);

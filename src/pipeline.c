@@ -45,13 +45,13 @@ find_in_path(const char *command, char *filepath)
 	}
 
 	if (!path_env) {
-		print_error(__func__, "getenv(\"PATH\") failed", 0);
+		error_print(__func__, "getenv(\"PATH\") failed", 0);
 		return 0;
 	}
 
 	path_copy = strdup(path_env);
 	if (!path_copy) {
-		print_error(__func__, "strdup() failed", errno);
+		error_print(__func__, "strdup() failed", errno);
 		return 0;
 	}
 
@@ -104,7 +104,7 @@ execute_pipeline(Command *cmd)
 	}
 
 	if (!find_in_path(args[0], path)) {
-		print_error(args[0], "command not found", 0);
+		error_print(args[0], "command not found", 0);
 		exit_code = 127;
 		return 1;
 	}
@@ -112,7 +112,7 @@ execute_pipeline(Command *cmd)
 	pid = fork();
 	if (pid == -1) {
 		exit_code = errno;
-		print_error(__func__, "fork() failed", errno);
+		error_print(__func__, "fork() failed", errno);
 		return 1;
 	}
 
@@ -120,14 +120,14 @@ execute_pipeline(Command *cmd)
 		// Child process - execve replaces process or we exit
 		execve(path, args, environ);
 		exit_code = errno;
-		print_error(__func__, "execve() failed", errno);
+		error_print(__func__, "execve() failed", errno);
 		exit(1);
 	}
 
 	// Parent process
 	if (waitpid(pid, &status, 0) == -1) {
 		exit_code = errno;
-		print_error(__func__, "waitpid() failed", errno);
+		error_print(__func__, "waitpid() failed", errno);
 		return 1;
 	}
 
