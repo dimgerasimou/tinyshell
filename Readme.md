@@ -3,45 +3,42 @@
 
 <p align="center">
   <em>Department of Electrical and Computer Engineering,</em><br>
-  Aristotle University of Thessaloniki</em><br>
-  <strong>Phase #1</strong>
+  Aristotle University of Thessaloniki<br>
+  <strong>Phase #2</strong>
 </p>
 
 ## Overview
 
-TinyShell is a lightweight command-line interpreter developed as part of the Operating Systems course at the Department of Electrical and Computer Engineering, Aristotle University of Thessaloniki. It demonstrates core shell functionality including process management, command execution, and built-in command handling.
+TinyShell is a lightweight command-line interpreter demonstrating core shell functionality including process management, pipelines, I/O redirection, and signal handling.
+
+It was developed as part of the Operating Systems course at the Department of Electrical and Computer Engineering, Aristotle University of Thessaloniki.
 
 ## Features
 
-### Core Functionality
-- **Interactive Command Prompt**: Displays `username@hostname:path` format
-- **Command Execution**: Executes external programs via fork() and execve()
-- **PATH Resolution**: Automatically searches PATH directories for executables
-- **Exit Status Reporting**: Properly handles and reports command exit codes
-- **EOF Handling**: Termination on Ctrl+D
+- **Interactive Prompt**: `username@hostname: path` with exit code display
+- **Command Execution**: External programs via `fork()` and `execve()`
+- **Pipelines**: Multiple commands connected with `|`
+- **I/O Redirection**: `<`, `>`, `>>`, `2>`, `2>>`
+- **Signal Handling**: Ctrl+C interrupts running commands, not the shell
+- **Quoting**: Single (`'`) and double (`"`) quotes with backslash escapes
+- **Tilde Expansion**: `~` expands to `$HOME`
 
 ### Built-in Commands
 
-#### `cd` - Change Directory
 ```bash
-cd              # Change to HOME directory
-cd <path>       # Change to specified path
-cd ~            # Change to HOME directory
-cd ~/Documents  # Change to subdirectory of HOME
+cd              # Change to HOME
+cd <path>       # Change to path
 cd -            # Change to previous directory (OLDPWD)
+exit [n]        # Exit with optional status code
 ```
 
-#### `exit` - Exit Shell
+## Building
+
 ```bash
-exit            # Exit with last command's status
-exit 0          # Exit with status 0
-exit 42         # Exit with status 42
+make            # Build
+make clean      # Remove build artifacts
+make run        # Build and run
 ```
-
-### Additional Features
-- **Tilde Expansion**: Automatically expands `~` to HOME directory
-- **Environment Variables**: Maintains PWD and OLDPWD
-- **Path Abbreviation**: Displays HOME as `~` in prompt
 
 ## Requirements
 
@@ -49,169 +46,43 @@ exit 42         # Exit with status 42
 - **Compiler**: GCC with C99 support
 - **Libraries**: Standard POSIX libraries
 
-## Installation
-
-### Clone or Download
-Download the source files:
-- `tinyshell.c` - Main implementation
-- `Makefile` - Build configuration
-
-### Compile
-```bash
-make
-```
-
-This will produce the `tinyshell` executable.
-
-### Compilation Options
-View build configuration:
-```bash
-make options
-```
-
-Manual compilation:
-```bash
-gcc -o tinyshell tinyshell.c -std=c99 -Wpedantic -Wall -Wextra -Os
-```
-
 ## Usage
 
-### Start the Shell
-```bash
-./tinyshell
+```
+user@host: ~
+[0]-> ls -la | grep ".c" | wc -l
+6
+
+user@host: ~
+[0]-> cat < input.txt > output.txt
+
+user@host: ~
+[0]-> sleep 100
+^C
+user@host: ~
+[130]-> exit
 ```
 
-### Example Session
-```
-TinyShell - Phase 1
-Type 'exit' to quit or press Ctrl+D
+## Architecture
 
-user@hostname: ~
-[0]-> ls -la
-
-user@hostname: ~
-[0]-> cd Documents
-
-user@hostname: ~/Documents
-[0]-> pwd
-/home/user/Documents
-
-user@hostname: ~/Documents
-[0]-> cd -
-/home/user
-
-user@hostname: ~
-[0]-> echo "Hello, World!"
-Hello, World!
-
-user@hostname: ~
-[0]-> exit
-```
-
-##  Architecture
-
-### Main Components
-
-1. **Main Loop** (`main_loop`)
-   - Prompt → Read → Parse → Execute cycle
-   - Tracks last exit code
-
-2. **Input Parsing** (`parse_input`)
-   - Tokenizes input on whitespace
-   - Creates NULL-terminated argument array
-
-3. **Command Execution** (`execute_command`)
-   - Searches PATH for executable
-   - Forks child process
-   - Executes via execve()
-   - Reports exit status
-
-4. **Built-in Handler** (`builtin_cd`)
-   - Implements cd functionality
-   - Updates environment variables
-
-5. **PATH Resolution** (`find_in_path`)
-   - Searches PATH directories
-   - Checks file executability
-
-6. **Prompt Display** (`print_prompt`)
-   - Shows username@hostname:path
-   - Abbreviates HOME directory
-   - Reports exit code of previous command
+| File | Purpose |
+|------|---------|
+| `main.c` | Entry point and REPL loop |
+| `parser.c` | Tokenizer and command parser |
+| `pipeline.c` | Pipeline execution and I/O redirection |
+| `builtin.c` | Built-in command implementations |
+| `signal_setup.c` | Signal handler configuration |
+| `error.c` | Error reporting utilities |
 
 ## Limitations
 
-TinyShell does not support:
-- Pipes (`|`)
-- Redirections (`>`, `<`, `>>`)
-- Background jobs (`&`)
-- Job control (fg, bg)
-- Command history or editing
-- Globbing (`*`, `?`)
-- Environment variable expansion (`$VAR`)
-- POSIX string expansion (using `'` or `"`)
-- Aliases
-- Shell scripts
-
-## Testing
-
-### Basic Commands
-```bash
--> ls
--> pwd
--> echo hello
-```
-
-### Built-in Commands
-```bash
--> cd /tmp
--> cd ~
--> cd -
--> exit 0
-```
-
-### Error Handling
-```bash
--> nonexistentcommand    # Should report "command not found"
--> cd /nonexistent       # Should report error
-```
-
-### Exit Codes
-```bash
--> /bin/true
--> /bin/false
-```
-
-## Error Handling
-
-TinyShell provides clear error messages for:
-- Command not found (exit code 127)
-- Fork failures
-- Execution failures
-- Environment variable issues
-- Directory change failures
-- Signal terminations (exit code 128+signal)
-
-## Cleanup
-
-Remove compiled binary:
-```bash
-make clean
-```
-
-## Educational Purpose
-
-This project demonstrates:
-- Process creation with `fork()`
-- Program execution with `execve()`
-- Process synchronization with `waitpid()`
-- Environment variable manipulation
-- PATH resolution
-- Signal handling basics
-- String parsing and manipulation
-- Error handling in system programming
+- No background jobs (`&`) or job control
+- No globbing (`*`, `?`)
+- No environment variable expansion (`$VAR`)
+- No command history or line editing
+- No shell scripts or aliases
 
 ## References
 
 - [POSIX.1-2008 Standard](https://pubs.opengroup.org/onlinepubs/9699919799/)
-- Linux man pages: `man 2 fork`, `man 2 execve`, `man 2 wait`
+- Linux man pages: `fork(2)`, `execve(2)`, `pipe(2)`, `dup2(2)`, `sigaction(2)`
