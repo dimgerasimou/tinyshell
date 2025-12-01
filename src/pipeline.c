@@ -10,7 +10,7 @@
 
 #include "pipeline.h"
 #include "error.h"
-#include "builtin_commands.h"
+#include "builtin.h"
 
 extern char **environ;
 extern int exit_code;
@@ -94,7 +94,7 @@ execute_pipeline(Command *cmd)
 
 	char **args = cmd->argv;
 
-	switch (built_in(cmd)) {
+	switch (builtin_exec(cmd)) {
 		case -1:
 			return -1;
 		case 0:
