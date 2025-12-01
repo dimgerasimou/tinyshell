@@ -9,7 +9,7 @@
 PROJECT := tinyshell
 
 CC := gcc
-CFLAGS := -std=c99 -Wpedantic -Wall -Wextra -Os
+CFLAGS := -std=c99 -Wpedantic -Wall -Wextra -Werror -Os
 CFLAGS += -MMD -MP
 
 -include $(OBJS:.o=.d)
@@ -26,8 +26,8 @@ OBJS := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%.o,$(SRCS))
 all: $(TARGET)
 
 $(TARGET): $(OBJS) | $(BIN_DIR)
-	@echo "Linking: $<"
-	@$(CC) -o $@ $^ $(CFLAGS)
+	@echo "Linking: $@"
+	@$(CC) -o $@ $^
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c | $(OBJ_DIR)
 	@echo "Compiling: $<"

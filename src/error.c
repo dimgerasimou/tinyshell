@@ -13,6 +13,9 @@
  *
  * This variable should be initialized by calling error_set_name()
  * before any calls to error_print().
+ *
+ * @note Points into argv[0] or to static storage. The caller must
+ *       ensure the string remains valid for the program's lifetime.
  */
 const char *program_name = "tinyshell";
 

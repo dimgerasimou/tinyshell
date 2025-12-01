@@ -26,6 +26,7 @@
 #include "pipeline.h"
 
 #define INPUT_MAX 4096
+#define EXIT_INTERNAL_ERROR 255
 
 /**
  * @brief Global exit code of the last executed command.
@@ -103,10 +104,11 @@ main_loop(void)
 {
 	char buf[INPUT_MAX];
 	Command *cmd;
+	int ret;
 
 	while (1) {
 		if (print_prompt(exit_code)) {
-			exit_code = 255;
+			exit_code = EXIT_INTERNAL_ERROR;
 			return;
 		}
 
@@ -119,12 +121,18 @@ main_loop(void)
 		if (!cmd || cmd->argc <= 0)
 			continue;
 
-		if (execute_pipeline(cmd) == -1) {
-			parser_free_cmd(cmd);
+		ret = execute_pipeline(cmd);
+		parser_free_cmd(cmd);
+
+		if (ret == 1) {
+			/* exit builtin was invoked */
 			return;
 		}
 
-		parser_free_cmd(cmd);
+		if (ret == -1) {
+			/* fatal error */
+			return;
+		}
 	}
 }
 

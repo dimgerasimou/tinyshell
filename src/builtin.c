@@ -52,6 +52,7 @@ parse_exit_code(const char *s)
 
 	return (unsigned int)(v & 0xFF);
 }
+
 /**
  * @brief Handle the builtin `cd` command.
  *
@@ -108,7 +109,7 @@ builtin_cd(Command *cmd)
 		return -1;
 	}
 
-	/* check if path exists, is a directory and with exec permision*/
+	/* check if path exists, is a directory and with exec permission */
 	if (stat(path, &st)) {
 		error_print("cd", path, errno);
 		exit_code = 1;

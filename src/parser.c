@@ -167,6 +167,11 @@ parser_next_token(const char **input, char **value)
 		buf[len++] = *p++;
 	}
 
+	if (len >= TOKEN_BUFFER_SIZE - 1) {
+		error_print("parse error", "token too long", 0);
+		return TOK_ERROR;
+	}
+
 	/* check for unclosed quotes */
 	if (sq || dq) {
 		error_print("parse error", "unclosed quote", 0);
@@ -176,10 +181,10 @@ parser_next_token(const char **input, char **value)
 	buf[len] = '\0';
 
 	/* expand tilde if applicable */
-	if (!parser_expand_tilde(buf, temp, TOKEN_BUFFER_SIZE))
-		*value = strdup(temp);
-	else
-		*value = strdup(buf);
+	if (parser_expand_tilde(buf, temp, TOKEN_BUFFER_SIZE))
+		return TOK_ERROR;
+
+	*value = strdup(temp);
 
 	if (!*value) {
 		error_print(__func__, "strdup", errno);
