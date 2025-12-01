@@ -96,11 +96,14 @@ execute_pipeline(Command *cmd)
 
 	switch (builtin_exec(cmd)) {
 		case -1:
-			return -1;
-		case 0:
-			break;
-		default:
 			return 0;
+		case 0:
+			return 0;
+		case 1:
+			break;
+		case 2:
+			return -1;
+			
 	}
 
 	if (!find_in_path(args[0], path)) {
