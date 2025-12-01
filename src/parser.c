@@ -261,7 +261,7 @@ parser_arg_append(Command *cmd, char *arg)
  * @brief Parse a command line into a pipeline of Commands.
  *
  * @param input  Null-terminated input string.
- * @return       Head of Command list, or NULL on parse error.
+ * @return       Head of Command list, or NULL on parse error or empty input.
  */
 Command*
 parser_parse(char *input)
@@ -271,6 +271,14 @@ parser_parse(char *input)
 	enum token_type type;
 	const char *p = input;
 	char *value;
+
+	/* Check for empty/whitespace-only input */
+	while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+		p++;
+	if (!*p)
+		return NULL;
+
+	p = input;  /* Reset for actual parsing */
 
 	head = parser_init_cmd();
 	if (!head)
@@ -394,4 +402,3 @@ parser_free_cmd(Command *cmd)
 		cmd = next;
 	}
 }
-

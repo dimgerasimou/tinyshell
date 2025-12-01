@@ -198,7 +198,7 @@ builtin_exit(Command *cmd)
 		int code = parse_exit_code(cmd->argv[1]);
 		if (code < 0) {
 			size_t len = strlen(cmd->argv[1]) + strlen(": numeric argument required") + 1;
-			char *msg = malloc(len * sizeof(char));
+			char *msg = malloc(len);
 			
 			if (!msg) {
 				error_print("exit", "malloc", errno);

@@ -24,6 +24,7 @@
 #include "error.h"
 #include "parser.h"
 #include "pipeline.h"
+#include "signal_setup.h"
 
 #define INPUT_MAX 4096
 #define EXIT_INTERNAL_ERROR 255
@@ -89,6 +90,7 @@ print_prompt(unsigned int code)
 	}
 
 	printf("\n%s@%s: %s\n[%u]-> ", user, hostname, display, code);
+	fflush(stdout);
 	return 0;
 }
 
@@ -113,8 +115,14 @@ main_loop(void)
 		}
 
 		if (!fgets(buf, sizeof(buf), stdin)) {
+			if (feof(stdin)) {
+				printf("\n");
+				break;
+			}
+			/* Interrupted by signal (Ctrl+C), print newline and reprompt */
+			clearerr(stdin);
 			printf("\n");
-			break;
+			continue;
 		}
 
 		cmd = parser_parse(buf);
@@ -139,7 +147,8 @@ main_loop(void)
 /**
  * @brief Program entry point.
  *
- * Initializes error reporting and enters the main loop.
+ * Initializes error reporting and signal handlers, then enters
+ * the main loop.
  *
  * @return Exit code of last command.
  */
@@ -147,6 +156,11 @@ int
 main(int argc __attribute__((unused)), char *argv[])
 {
 	error_set_name(argv[0]);
+
+	if (signal_setup()) {
+		return EXIT_INTERNAL_ERROR;
+	}
+
 	main_loop();
 	return exit_code;
 }

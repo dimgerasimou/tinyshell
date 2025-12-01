@@ -22,6 +22,7 @@
 #include "pipeline.h"
 #include "error.h"
 #include "builtin.h"
+#include "signal_setup.h"
 
 extern char **environ;
 extern int exit_code;
@@ -164,6 +165,9 @@ execute_child(Command *cmd, int prev_fd, int pipe_fd[2])
 {
 	char path[PATH_MAX];
 	int builtin_ret;
+
+	/* Restore default signal handlers for child */
+	signal_restore_defaults();
 
 	/* Connect stdin to previous pipe (if not first command) */
 	if (prev_fd != -1) {
@@ -311,9 +315,11 @@ execute_pipeline(Command *pipeline)
 
 	/* Wait for all children */
 	for (i = 0; i < cmd_count; i++) {
-		if (waitpid(pids[i], &status, 0) == -1) {
+		while (waitpid(pids[i], &status, 0) == -1) {
+			if (errno == EINTR)
+				continue;  /* Interrupted by signal, retry */
 			error_print(__func__, "waitpid", errno);
-			continue;
+			break;
 		}
 
 		/* Use last command's exit status */
