@@ -1,3 +1,19 @@
+/**
+ * @file parser.c
+ * @brief Command line parser for shell input.
+ *
+ * Tokenizes and parses shell command lines into a pipeline of
+ * Command structures. Supports:
+ *
+ *   - Pipes (|)
+ *   - Input redirection (<)
+ *   - Output redirection (>, >>)
+ *   - Stderr redirection (2>, 2>>)
+ *   - Single and double quotes
+ *   - Backslash escapes within double quotes
+ *   - Tilde expansion (~, ~/path)
+ */
+
 #define _POSIX_C_SOURCE 200809L
 
 #include <errno.h>
@@ -8,7 +24,6 @@
 #include "parser.h"
 #include "error.h"
 
-#define MAX_TOKENS 128
 #define TOKEN_BUFFER_SIZE 4096
 
 enum token_type {
@@ -24,17 +39,52 @@ enum token_type {
 };
 
 /**
+ * @brief Expand a leading '~' into the user's HOME directory.
+ *
+ * Supports:
+ *   "~"      -> $HOME
+ *   "~/foo"  -> $HOME/foo
+ *
+ * "~user" is not implemented and is copied verbatim.
+ *
+ * @param path      Input path string.
+ * @param expanded  Output buffer for expanded path.
+ * @param size      Maximum size of the output buffer.
+ * @return          0 on success, -1 if HOME is not set.
+ */
+static int
+parser_expand_tilde(const char *path, char *expanded, size_t size)
+{
+	const char *env;
+
+	/* return if not "~" or "~/<path>" */
+	if (path[0] != '~' || (path[1] != '\0' && path[1] != '/')) {
+		strncpy(expanded, path, size - 1);
+		expanded[size - 1] = '\0';
+		return 0;
+	}
+
+	if (!(env = getenv("HOME"))) {
+		error_print(__func__, "getenv \"HOME\"", errno);
+		return -1;
+	}
+
+	snprintf(expanded, size, "%s%s", env, path + 1);
+	return 0;
+}
+
+/**
  * @brief Get next token from input string.
  *
  * Advances *input to point past the consumed token.
  * For TOK_WORD, allocates and returns the word value.
  *
- * @param input Pointer to input string pointer (updated on return)
- * @param value Output: allocated string for TOK_WORD (NULL for operators)
- * @return Token type
+ * @param input  Pointer to input string pointer (updated on return).
+ * @param value  Output: allocated string for TOK_WORD (NULL for operators).
+ * @return       Token type.
  */
 static enum token_type
-next_token(const char **input, char **value)
+parser_next_token(const char **input, char **value)
 {
 	char buf[TOKEN_BUFFER_SIZE];
 	char temp[TOKEN_BUFFER_SIZE];
@@ -44,17 +94,17 @@ next_token(const char **input, char **value)
 
 	*value = NULL;
 
-	// Skip whitespace
+	/* skip whitespace */
 	while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
 		p++;
 
-	// End of input
+	/* end of input */
 	if (!*p) {
 		*input = p;
 		return TOK_END;
 	}
 
-	// Check operators
+	/* single char operators */
 	if (*p == '|') {
 		*input = p + 1;
 		return TOK_PIPE;
@@ -74,32 +124,31 @@ next_token(const char **input, char **value)
 		return TOK_REDIR_OUT;
 	}
 
-	if (*p == '2') {
-		if (*(p+1) == '>') {
-			if (*(p + 2) == '>') {
-				*input = p + 3;
-				return TOK_REDIR_ERR_APPEND;
-			}
-			*input = p + 2;
-			return TOK_REDIR_ERR;
+	/* stderr redirection: 2> or 2>> */
+	if (*p == '2' && *(p+1) == '>') {
+		if (*(p + 2) == '>') {
+			*input = p + 3;
+			return TOK_REDIR_ERR_APPEND;
 		}
+		*input = p + 2;
+		return TOK_REDIR_ERR;
 	}
 
-	// Build word token
+	/* build word token */
 	while (*p && len < TOKEN_BUFFER_SIZE - 1) {
-		// Handle quotes
 		if (*p == '\'' && !dq) {
 			sq = !sq;
 			p++;
 			continue;
 		}
+
 		if (*p == '"' && !sq) {
 			dq = !dq;
 			p++;
 			continue;
 		}
 
-		// Handle escape in double quotes
+		/* Backslash escapes within double quotes */
 		if (*p == '\\' && dq &&
 		    (*(p + 1) == '"' || *(p + 1) == '\\')) {
 			p++;
@@ -107,7 +156,7 @@ next_token(const char **input, char **value)
 			continue;
 		}
 
-		// Stop at whitespace or operators when not quoted
+		/* Unquoted: stop at whitespace or operators */
 		if (!sq && !dq) {
 			if (*p == ' ' || *p == '\t' ||
 			    *p == '|' || *p == '<' || *p == '>' ||
@@ -118,14 +167,22 @@ next_token(const char **input, char **value)
 		buf[len++] = *p++;
 	}
 
+	/* check for unclosed quotes */
+	if (sq || dq) {
+		error_print("parse error", "unclosed quote", 0);
+		return TOK_ERROR;
+	}
+
 	buf[len] = '\0';
-	if (!expand_tilde(buf, temp, TOKEN_BUFFER_SIZE))
+
+	/* expand tilde if applicable */
+	if (!parser_expand_tilde(buf, temp, TOKEN_BUFFER_SIZE))
 		*value = strdup(temp);
 	else
 		*value = strdup(buf);
 
 	if (!*value) {
-		error_print(__func__, "strdup() failed", errno);
+		error_print(__func__, "strdup", errno);
 		return TOK_ERROR;
 	}
 
@@ -133,229 +190,203 @@ next_token(const char **input, char **value)
 	return TOK_WORD;
 }
 
+/**
+ * @brief Allocate and initialize a new Command structure.
+ *
+ * @return  New Command or NULL on allocation failure.
+ */
 static Command*
-new_cmd(void)
+parser_init_cmd(void)
 {
-	Command *ret = NULL;
+	Command *cmd;
 
-	ret = malloc(sizeof(Command));
-	if (!ret) {
-		error_print(__func__, "malloc() failed", errno);
+	cmd = malloc(sizeof(Command));
+	if (!cmd) {
+		error_print(__func__, "malloc", errno);
 		return NULL;
 	}
 
-	ret->argc = 0;
-	ret->argv = malloc((ret->argc + 1) * sizeof(char*));
-
-	if (!ret->argv) {
-		error_print(__func__, "malloc() failed", errno);
-		free(ret);
+	cmd->argc = 0;
+	cmd->argv = malloc(sizeof(char *));
+	if (!cmd->argv) {
+		error_print(__func__, "malloc", errno);
+		free(cmd);
 		return NULL;
 	}
 
-	ret->argv[0] = NULL;
+	cmd->argv[0] = NULL;
+	cmd->redirect[REDIR_STDIN]  = NULL;
+	cmd->redirect[REDIR_STDOUT] = NULL;
+	cmd->redirect[REDIR_STDERR] = NULL;
+	cmd->next = NULL;
+	cmd->append = 0;
 
-	ret->redirect[0] = NULL;
-	ret->redirect[1] = NULL;
-	ret->redirect[2] = NULL;
-	ret->next = NULL;
-	ret->append = 0;
-
-	return ret;
+	return cmd;
 }
 
+/**
+ * @brief Append an argument to a command's argv array.
+ *
+ * Takes ownership of the argument string.
+ *
+ * @param cmd  Command to append to.
+ * @param arg  Argument string (ownership transferred).
+ * @return     0 on success, -1 on allocation failure.
+ */
 static int
-append_arg(Command *cmd, char **input)
+parser_arg_append(Command *cmd, char *arg)
 {
 	char **argv;
 
-	cmd->argc += 1;
-	argv = realloc(cmd->argv, (cmd->argc + 1) * sizeof(char*));
-
+	cmd->argc++;
+	argv = realloc(cmd->argv, (cmd->argc + 1) * sizeof(char *));
 	if (!argv) {
-		error_print(__func__, "realloc() failed", errno);
-		return 1;
+		error_print(__func__, "realloc", errno);
+		return -1;
 	}
 
-	argv[cmd->argc - 1] = *input;
+	argv[cmd->argc - 1] = arg;
 	argv[cmd->argc] = NULL;
-
 	cmd->argv = argv;
+
 	return 0;
 }
 
 /**
- * @brief Expand a leading '~' into the user's HOME directory.
+ * @brief Parse a command line into a pipeline of Commands.
  *
- * Supports:
- *   "~"      -> $HOME
- *   "~/foo"  -> $HOME/foo
- *
- * "~username" is intentionally not implemented and is copied verbatim.
- *
- * @param path      Input path string.
- * @param expanded  Output buffer for expanded path.
- * @param size      Maximum size of the output buffer.
- *
- * @return 0 on success, -1 if HOME is not set.
+ * @param input  Null-terminated input string.
+ * @return       Head of Command list, or NULL on parse error.
  */
-int
-expand_tilde(const char *path, char *expanded, size_t size)
-{
-	if (path[0] != '~') {
-		strncpy(expanded, path, size - 1);
-		expanded[size - 1] = '\0';
-		return 0;
-	}
-
-	char *home = getenv("HOME");
-	if (!home) {
-		error_print(__func__, "HOME not set", 0);
-		return -1;
-	}
-
-	if (path[1] == '\0' || path[1] == '/') {
-		snprintf(expanded, size, "%s%s", home, path + 1);
-		return 0;
-	}
-
-	strncpy(expanded, path, size - 1);
-	expanded[size - 1] = '\0';
-	return 0;
-}
-
 Command*
 parser_parse(char *input)
 {
-	Command *ret;
+	Command *head;
 	Command *cur;
-
+	enum token_type type;
 	const char *p = input;
 	char *value;
-	enum token_type type;
 
-	ret = new_cmd();
-	if (!ret)
+	head = parser_init_cmd();
+	if (!head)
 		return NULL;
 
-	cur = ret;
+	cur = head;
 
-	while ((type = next_token(&p, &value)) != TOK_END) {
+	while ((type = parser_next_token(&p, &value)) != TOK_END) {
 		switch (type) {
 		case TOK_WORD:
-			if (append_arg(cur, &value)) {
-				if (value)
-					free(value);
+			if (parser_arg_append(cur, value)) {
+				free(value);
 				goto fail;
 			}
 			break;
 
 		case TOK_PIPE:
-		{
-			Command *next = new_cmd();
-			if (next == NULL)
-				goto fail;
-
-			cur->next = next;
-			cur = next;
-			break;
-		}
-
-		case TOK_REDIR_IN:
-			if (cur->redirect[0] || next_token(&p, &value) != TOK_WORD) {
-				error_print(NULL, "parse error near '<'", 0);
-				goto fail;
-			}
-
-			cur->redirect[0] = value;
-			break;
-
-		case TOK_REDIR_OUT:
-			if (cur->redirect[1] || next_token(&p, &value) != TOK_WORD) {
-				error_print(NULL, "parse error near '>'", 0);
-				goto fail;
-			}
-
-			cur->redirect[1] = value;
-			break;
-
-		case TOK_REDIR_OUT_APPEND:
-			if (cur->redirect[1] || next_token(&p, &value) != TOK_WORD) {
-				error_print(NULL, "parse error near \">>\"", 0);
-				goto fail;
-			}
-
-			cur->redirect[1] = value;
-			cur->append |= 1 << 1;
-			break;
-
-		case TOK_REDIR_ERR:
-			if (cur->redirect[2] || next_token(&p, &value) != TOK_WORD) {
-				error_print(NULL, "parse error near '2>'", 0);
-				goto fail;
-			}
-
-			cur->redirect[2] = value;
-			break;
-
-		case TOK_REDIR_ERR_APPEND:
-			if (cur->redirect[2] || next_token(&p, &value) != TOK_WORD) {
-				error_print(NULL, "parse error near \"2>>\"", 0);
-				goto fail;
-			}
-
-			cur->redirect[2] = value;
-			cur->append |= 1 << 2;
-			break;
-
-		case TOK_END: /* dead code */
 			if (!cur->argv[0]) {
 				error_print(NULL, "parse error near '|'", 0);
 				goto fail;
 			}
+			cur->next = parser_init_cmd();
+			if (!cur->next)
+				goto fail;
+			cur = cur->next;
+			break;
+
+		case TOK_REDIR_IN:
+			if (cur->redirect[REDIR_STDIN] || parser_next_token(&p, &value) != TOK_WORD) {
+				error_print(NULL, "parse error near '<'", 0);
+				goto fail;
+			}
+
+			cur->redirect[REDIR_STDIN] = value;
+			break;
+
+		case TOK_REDIR_OUT:
+			if (cur->redirect[REDIR_STDOUT] || parser_next_token(&p, &value) != TOK_WORD) {
+				error_print(NULL, "parse error near '>'", 0);
+				goto fail;
+			}
+
+			cur->redirect[REDIR_STDOUT] = value;
+			break;
+
+		case TOK_REDIR_OUT_APPEND:
+			if (cur->redirect[REDIR_STDOUT] || parser_next_token(&p, &value) != TOK_WORD) {
+				error_print(NULL, "parse error near '>>'", 0);
+				goto fail;
+			}
+
+			cur->redirect[REDIR_STDOUT] = value;
+			cur->append |= APPEND_STDOUT;
+			break;
+
+		case TOK_REDIR_ERR:
+			if (cur->redirect[REDIR_STDERR] || parser_next_token(&p, &value) != TOK_WORD) {
+				error_print(NULL, "parse error near '2>'", 0);
+				goto fail;
+			}
+
+			cur->redirect[REDIR_STDERR] = value;
+			break;
+
+		case TOK_REDIR_ERR_APPEND:
+			if (cur->redirect[REDIR_STDERR] || parser_next_token(&p, &value) != TOK_WORD) {
+				error_print(NULL, "parse error near '2>>'", 0);
+				goto fail;
+			}
+
+			cur->redirect[REDIR_STDERR] = value;
+			cur->append |= APPEND_STDERR;
 			break;
 
 		case TOK_ERROR:
-			if (value)
-				free(value);
 			goto fail;
+
+		case TOK_END:
+			break;
 		}
 	}
 
 	if (!cur->argv[0]) {
-		error_print(NULL, "parse error: expected command", 0);
+		error_print(NULL, "parse error: empty command", 0);
 		goto fail;
 	}
 
-	return ret;
+	return head;
 
 fail:
-	parser_free_cmd(ret);
+	parser_free_cmd(head);
 	return NULL;
 }
 
+/**
+ * @brief Free a Command pipeline.
+ *
+ * Frees all Commands in the linked list, including their
+ * argv arrays and redirection targets.
+ *
+ * @param cmd  Head of Command list (may be NULL).
+ */
 void
 parser_free_cmd(Command *cmd)
 {
+	Command *next;
+
 	while (cmd) {
 		if (cmd->argv) {
-			for (int i = 0; i < cmd->argc; i++) {
-				if (cmd->argv[i])
-					free(cmd->argv[i]);
-			}
+			for (int i = 0; i < cmd->argc; i++)
+				free(cmd->argv[i]);
 			free(cmd->argv);
 		}
 
-		if (cmd->redirect[0])
-			free(cmd->redirect[0]);
-		if (cmd->redirect[1])
-			free(cmd->redirect[1]);
-		if (cmd->redirect[2])
-			free(cmd->redirect[2]);
+		free(cmd->redirect[REDIR_STDIN]);
+		free(cmd->redirect[REDIR_STDOUT]);
+		free(cmd->redirect[REDIR_STDERR]);
 
-		Command *n = cmd->next;
-
+		next = cmd->next;
 		free(cmd);
-		cmd = n;
+		cmd = next;
 	}
 }
+
