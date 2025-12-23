@@ -12,12 +12,17 @@
 #include "parser.h"
 
 /**
- * Execute a builtin command if applicable.
+ * @brief Execute a builtin command if applicable.
+ *
+ * Builtins may need to run in the shell process to affect shell state
+ * (e.g., cd, exit). When executed in a forked child, state changes do
+ * not propagate back to the shell.
  *
  * @param cmd  Command structure to execute.
- * @return     0 if builtin is executed normally,
- *             1 if not a builtin, 2 to signal exit,
- *             or -1 on error.
+ * @return     0 if builtin executed successfully,
+ *             1 if cmd is not a builtin,
+ *             2 to signal shell exit,
+ *            -1 on error.
  */
 int builtin_exec(Command *cmd);
 

@@ -3,8 +3,8 @@
  * @brief Pipeline execution interface.
  *
  * Provides the main execution engine for shell commands. Handles
- * forking, piping between processes, I/O redirection, and builtin
- * command dispatch.
+ * forking, piping between processes, I/O redirection, builtin
+ * dispatch, and basic job control for foreground/background pipelines.
  */
 
 #ifndef PIPELINE_H

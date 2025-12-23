@@ -329,11 +329,12 @@ status_to_exitcode(int status)
 	return 0;
 }
 
-/*
- * Reap all available child status changes.
+/**
+ * @brief Reap child status changes and update the job table.
  *
- * This is called from the SIGCHLD handler in signal_setup.c.
- * Must not malloc(), printf(), etc.
+ * Called from the SIGCHLD handler (signal_setup.c). This function must
+ * remain async-signal-safe: do not call non-signal-safe functions such as
+ * malloc(), printf(), etc.
  */
 void
 jobs_sigchld_reap(void)
@@ -377,6 +378,13 @@ jobs_sigchld_reap(void)
 	errno = saved_errno;
 }
 
+/**
+ * @brief Print notifications for background job state changes.
+ *
+ * Prints "Stopped" and "Done" notifications for jobs that have changed
+ * state since the last call. Done jobs are removed from the job table.
+ * Safe to call from the main loop before printing the next prompt.
+ */
 void
 pipeline_notify_jobs(void)
 {
@@ -738,6 +746,18 @@ execute_child(Command *cmd, int prev_fd, int pipe_fd[2])
 /*                           Pipeline Execution                               */
 /* ------------------------------------------------------------------------- */
 
+/**
+ * @brief Execute a pipeline of commands.
+ *
+ * Forks and executes the given pipeline, sets up pipes and redirections,
+ * and performs basic job control for foreground/background execution.
+ * Updates the global exit_code to the last command's status.
+ *
+ * @param pipeline  Head of a Command linked list.
+ * @return          0 on success,
+ *                  1 if the shell should exit ("exit" builtin),
+ *                 -1 on fatal error.
+ */
 int
 execute_pipeline(Command *pipeline)
 {

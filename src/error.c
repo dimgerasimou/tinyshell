@@ -20,7 +20,11 @@
 const char *program_name = "tinyshell";
 
 /**
- * @copydoc set_program_name()
+ * @brief Set the program name used in error messages.
+ *
+ * Extracts the basename from the provided path (typically argv[0]).
+ *
+ * @param name  Program name or path (may be NULL).
  */
 void
 error_set_name(const char *name)
