@@ -2,7 +2,7 @@
  * @file main.c
  * @brief Implementation of TinyShell, a simple but functional shell program.
  *
- * This implementation was developed for the purposes of the class:
+ * This implementation was developed for the course:
  * Operating Systems,
  * Department of Electrical and Computer Engineering,
  * Aristotle University of Thessaloniki.
