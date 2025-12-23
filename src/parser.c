@@ -6,6 +6,7 @@
  * Command structures. Supports:
  *
  *   - Pipes (|)
+ *   - Background execution (&) (must appear at end of line)
  *   - Input redirection (<)
  *   - Output redirection (>, >>)
  *   - Stderr redirection (2>, 2>>)
@@ -29,6 +30,7 @@
 enum token_type {
 	TOK_WORD,
 	TOK_PIPE,
+	TOK_BG,
 	TOK_REDIR_IN,
 	TOK_REDIR_OUT,
 	TOK_REDIR_OUT_APPEND,
@@ -37,6 +39,10 @@ enum token_type {
 	TOK_END,
 	TOK_ERROR
 };
+
+/* ------------------------------------------------------------------------- */
+/*                            Static Helper Functions                        */
+/* ------------------------------------------------------------------------- */
 
 /**
  * @brief Expand a leading '~' into the user's HOME directory.
@@ -110,6 +116,11 @@ parser_next_token(const char **input, char **value)
 		return TOK_PIPE;
 	}
 
+	if (*p == '&') {
+		*input = p + 1;
+		return TOK_BG;
+	}
+
 	if (*p == '<') {
 		*input = p + 1;
 		return TOK_REDIR_IN;
@@ -125,7 +136,7 @@ parser_next_token(const char **input, char **value)
 	}
 
 	/* stderr redirection: 2> or 2>> */
-	if (*p == '2' && *(p+1) == '>') {
+	if (*p == '2' && *(p + 1) == '>') {
 		if (*(p + 2) == '>') {
 			*input = p + 3;
 			return TOK_REDIR_ERR_APPEND;
@@ -159,7 +170,7 @@ parser_next_token(const char **input, char **value)
 		/* Unquoted: stop at whitespace or operators */
 		if (!sq && !dq) {
 			if (*p == ' ' || *p == '\t' ||
-			    *p == '|' || *p == '<' || *p == '>' ||
+			    *p == '|' || *p == '&' || *p == '<' || *p == '>' ||
 			    *p == '\n' || *p == '\r')
 				break;
 		}
@@ -185,7 +196,6 @@ parser_next_token(const char **input, char **value)
 		return TOK_ERROR;
 
 	*value = strdup(temp);
-
 	if (!*value) {
 		error_print(__func__, "strdup", errno);
 		return TOK_ERROR;
@@ -225,6 +235,7 @@ parser_init_cmd(void)
 	cmd->redirect[REDIR_STDERR] = NULL;
 	cmd->next = NULL;
 	cmd->append = 0;
+	cmd->background = 0;
 
 	return cmd;
 }
@@ -256,6 +267,10 @@ parser_arg_append(Command *cmd, char *arg)
 
 	return 0;
 }
+
+/* ------------------------------------------------------------------------- */
+/*                              Public Interface                             */
+/* ------------------------------------------------------------------------- */
 
 /**
  * @brief Parse a command line into a pipeline of Commands.
@@ -306,49 +321,64 @@ parser_parse(char *input)
 			cur = cur->next;
 			break;
 
+		case TOK_BG:
+			/* '&' is only supported at the end of the pipeline */
+			if (!head->argv[0]) {
+				error_print(NULL, "parse error near '&'", 0);
+				goto fail;
+			}
+			while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r')
+				p++;
+			if (*p) {
+				error_print(NULL, "parse error near '&'", 0);
+				goto fail;
+			}
+			head->background = 1;
+			goto done;
+
 		case TOK_REDIR_IN:
-			if (cur->redirect[REDIR_STDIN] || parser_next_token(&p, &value) != TOK_WORD) {
+			if (cur->redirect[REDIR_STDIN] ||
+			    parser_next_token(&p, &value) != TOK_WORD) {
 				error_print(NULL, "parse error near '<'", 0);
 				goto fail;
 			}
-
 			cur->redirect[REDIR_STDIN] = value;
 			break;
 
 		case TOK_REDIR_OUT:
-			if (cur->redirect[REDIR_STDOUT] || parser_next_token(&p, &value) != TOK_WORD) {
+			if (cur->redirect[REDIR_STDOUT] ||
+			    parser_next_token(&p, &value) != TOK_WORD) {
 				error_print(NULL, "parse error near '>'", 0);
 				goto fail;
 			}
-
 			cur->redirect[REDIR_STDOUT] = value;
 			break;
 
 		case TOK_REDIR_OUT_APPEND:
-			if (cur->redirect[REDIR_STDOUT] || parser_next_token(&p, &value) != TOK_WORD) {
+			if (cur->redirect[REDIR_STDOUT] ||
+			    parser_next_token(&p, &value) != TOK_WORD) {
 				error_print(NULL, "parse error near '>>'", 0);
 				goto fail;
 			}
-
 			cur->redirect[REDIR_STDOUT] = value;
 			cur->append |= APPEND_STDOUT;
 			break;
 
 		case TOK_REDIR_ERR:
-			if (cur->redirect[REDIR_STDERR] || parser_next_token(&p, &value) != TOK_WORD) {
+			if (cur->redirect[REDIR_STDERR] ||
+			    parser_next_token(&p, &value) != TOK_WORD) {
 				error_print(NULL, "parse error near '2>'", 0);
 				goto fail;
 			}
-
 			cur->redirect[REDIR_STDERR] = value;
 			break;
 
 		case TOK_REDIR_ERR_APPEND:
-			if (cur->redirect[REDIR_STDERR] || parser_next_token(&p, &value) != TOK_WORD) {
+			if (cur->redirect[REDIR_STDERR] ||
+			    parser_next_token(&p, &value) != TOK_WORD) {
 				error_print(NULL, "parse error near '2>>'", 0);
 				goto fail;
 			}
-
 			cur->redirect[REDIR_STDERR] = value;
 			cur->append |= APPEND_STDERR;
 			break;
@@ -361,6 +391,7 @@ parser_parse(char *input)
 		}
 	}
 
+done:
 	if (!cur->argv[0]) {
 		error_print(NULL, "parse error: empty command", 0);
 		goto fail;

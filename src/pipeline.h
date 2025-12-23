@@ -28,4 +28,12 @@
  */
 int execute_pipeline(Command *pipeline);
 
+/**
+ * @brief Print notifications for background job status changes.
+ *
+ * Best called from the main loop right before printing the next prompt.
+ * execute_pipeline() also calls it opportunistically.
+ */
+void pipeline_notify_jobs(void);
+
 #endif /* PIPELINE_H */

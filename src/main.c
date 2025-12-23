@@ -109,6 +109,8 @@ main_loop(void)
 	int ret;
 
 	while (1) {
+		pipeline_notify_jobs();
+
 		if (print_prompt(exit_code)) {
 			exit_code = EXIT_INTERNAL_ERROR;
 			return;

@@ -38,6 +38,7 @@ struct Command {
 	char **argv;                 /* NULL-terminated argument vector */
 	char *redirect[REDIR_COUNT]; /* I/O redirection targets (NULL if unused) */
 	unsigned int append;         /* Append flags (APPEND_STDOUT, APPEND_STDERR) */
+	int background;              /* Pipeline runs in background if '&' (head only) */
 	Command *next;               /* Next command in pipeline */
 };
 
